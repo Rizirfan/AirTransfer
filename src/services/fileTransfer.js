@@ -1,4 +1,4 @@
-import { CHUNK_SIZE, packChunk, unpackChunk, getChunkCount } from '../utils/chunking.js';
+import { CHUNK_SIZE, packChunk, unpackChunk, getChunkCount, getMimeType } from '../utils/chunking.js';
 import { encryptChunk, decryptChunk } from './encryption.js';
 
 /**
@@ -70,7 +70,7 @@ export class FileTransferManager {
       fileIndex: idx,
       name: f.name,
       size: f.size,
-      mime: f.type || 'application/octet-stream'
+      mime: getMimeType(f.name, f.type)
     }));
 
     const message = JSON.stringify({
@@ -120,6 +120,7 @@ export class FileTransferManager {
   async sendFile(file, fileIndex) {
     const totalChunks = getChunkCount(file.size);
     const fileId = `file-${fileIndex}-${Date.now()}`;
+    const detectedMime = getMimeType(file.name, file.type);
 
     // Send file-start control message
     const startMsg = JSON.stringify({
@@ -128,7 +129,7 @@ export class FileTransferManager {
       fileId,
       name: file.name,
       size: file.size,
-      mime: file.type || 'application/octet-stream',
+      mime: detectedMime,
       totalChunks,
       encrypted: this.useEncryption
     });
@@ -156,8 +157,13 @@ export class FileTransferManager {
       // Pack metadata header + chunk payload
       const packetBuffer = packChunk(fileIndex, chunkIndex, chunkBuffer);
 
-      // Backpressure check: Wait if DataChannel buffer is full
-      await this.webrtc.waitForBuffer(256 * 1024);
+      // Backpressure check: Wait if DataChannel buffer is full (64KB threshold for mobile)
+      await this.webrtc.waitForBuffer(64 * 1024);
+
+      // Micro yield every 10 chunks to allow mobile event loop to flush socket buffers cleanly
+      if (chunkIndex % 10 === 0) {
+        await new Promise(r => setTimeout(r, 0));
+      }
 
       // Send binary chunk over DataChannel
       this.webrtc.send(packetBuffer);
@@ -269,12 +275,21 @@ export class FileTransferManager {
 
       case 'file-end':
         if (this.currentReceivingFile) {
-          // Cleanly filter valid non-empty chunk buffers
-          const validChunks = this.receivedChunks.filter(c => c && c.byteLength > 0);
-          const mimeType = this.currentReceivingFile.mime || 'application/octet-stream';
+          const totalExpected = this.currentReceivingFile.totalChunks || 1;
+          const chunkArray = [];
 
-          // Construct received Blob from collected chunk buffers
-          const blob = new Blob(validChunks, { type: mimeType });
+          for (let i = 0; i < totalExpected; i++) {
+            if (this.receivedChunks[i]) {
+              chunkArray.push(this.receivedChunks[i]);
+            } else {
+              console.warn(`Warning: Missing chunk index ${i} for file ${this.currentReceivingFile.name}`);
+            }
+          }
+
+          const mimeType = getMimeType(this.currentReceivingFile.name, this.currentReceivingFile.mime);
+
+          // Construct received Blob from ordered chunk buffers
+          const blob = new Blob(chunkArray, { type: mimeType });
           const blobUrl = URL.createObjectURL(blob);
 
           const receivedFileItem = {

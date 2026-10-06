@@ -77,8 +77,8 @@ export class WebRTCService {
     this.dataChannel = channel;
     this.dataChannel.binaryType = 'arraybuffer';
 
-    // Set low threshold for backpressure management (64 KB)
-    this.dataChannel.bufferedAmountLowThreshold = 64 * 1024;
+    // Set low threshold for backpressure management (32 KB for mobile stability)
+    this.dataChannel.bufferedAmountLowThreshold = 32 * 1024;
 
     this.dataChannel.onopen = () => {
       this.trigger('datachannel-open');
@@ -175,7 +175,7 @@ export class WebRTCService {
    * @param {number} maxBufferedAmount Default 256 KB
    * @returns {Promise<void>}
    */
-  async waitForBuffer(maxBufferedAmount = 256 * 1024) {
+  async waitForBuffer(maxBufferedAmount = 64 * 1024) {
     if (!this.dataChannel) return;
 
     if (this.dataChannel.bufferedAmount <= maxBufferedAmount) {
