@@ -223,15 +223,22 @@ export class FileTransferManager {
    * @param {string|ArrayBuffer} data
    */
   async handleIncomingData(data) {
-    if (typeof data === 'string') {
+    let buffer = data;
+    if (data instanceof Blob) {
+      buffer = await data.arrayBuffer();
+    } else if (ArrayBuffer.isView(data)) {
+      buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    }
+
+    if (typeof buffer === 'string') {
       try {
-        const msg = JSON.parse(data);
+        const msg = JSON.parse(buffer);
         await this.handleControlMessage(msg);
       } catch (e) {
         console.error('Failed to parse text message from DataChannel:', e);
       }
-    } else if (data instanceof ArrayBuffer) {
-      await this.handleBinaryChunk(data);
+    } else if (buffer instanceof ArrayBuffer) {
+      await this.handleBinaryChunk(buffer);
     }
   }
 
@@ -262,8 +269,12 @@ export class FileTransferManager {
 
       case 'file-end':
         if (this.currentReceivingFile) {
+          // Cleanly filter valid non-empty chunk buffers
+          const validChunks = this.receivedChunks.filter(c => c && c.byteLength > 0);
+          const mimeType = this.currentReceivingFile.mime || 'application/octet-stream';
+
           // Construct received Blob from collected chunk buffers
-          const blob = new Blob(this.receivedChunks, { type: this.currentReceivingFile.mime });
+          const blob = new Blob(validChunks, { type: mimeType });
           const blobUrl = URL.createObjectURL(blob);
 
           const receivedFileItem = {
@@ -271,7 +282,7 @@ export class FileTransferManager {
             fileId: this.currentReceivingFile.fileId,
             name: this.currentReceivingFile.name,
             size: this.currentReceivingFile.size,
-            mime: this.currentReceivingFile.mime,
+            mime: mimeType,
             blobUrl
           };
 

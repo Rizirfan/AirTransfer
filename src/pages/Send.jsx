@@ -17,7 +17,7 @@ import { Lock, Send as SendIcon, ArrowLeft, Shield } from 'lucide-react';
 
 export function Send({ initialFiles = [], onBackToHome, iceConfig }) {
   const [files, setFiles] = useState(initialFiles);
-  const [useEncryption, setUseEncryption] = useState(true);
+  const [useEncryption, setUseEncryption] = useState(false);
   
   // Connection states
   const [transferState, setTransferState] = useState('IDLE'); // IDLE, CREATING_SESSION, WAITING_FOR_PEER, CONNECTING, CONNECTED, WAITING_FOR_ACCEPT, TRANSFERRING, COMPLETED, DISCONNECTED, FAILED, EXPIRED, CANCELLED
