@@ -121,6 +121,7 @@ export class FileTransferManager {
     const totalChunks = getChunkCount(file.size);
     const fileId = `file-${fileIndex}-${Date.now()}`;
     const detectedMime = getMimeType(file.name, file.type);
+    const isChunkEncrypted = !!(this.useEncryption && this.cryptoKey && !this.cryptoKey.isFallback);
 
     // Send file-start control message
     const startMsg = JSON.stringify({
@@ -131,7 +132,7 @@ export class FileTransferManager {
       size: file.size,
       mime: detectedMime,
       totalChunks,
-      encrypted: this.useEncryption
+      encryptedChunks: isChunkEncrypted
     });
 
     this.webrtc.send(startMsg);
@@ -149,8 +150,8 @@ export class FileTransferManager {
       const chunkSlice = file.slice(offset, offset + CHUNK_SIZE);
       let chunkBuffer = await chunkSlice.arrayBuffer();
 
-      // Application-level AES-GCM encryption if enabled
-      if (this.useEncryption && this.cryptoKey) {
+      // Application-level AES-GCM encryption if enabled and non-fallback key present
+      if (isChunkEncrypted) {
         chunkBuffer = await encryptChunk(chunkBuffer, this.cryptoKey, chunkIndex);
       }
 
@@ -335,9 +336,15 @@ export class FileTransferManager {
 
       let chunkData = payload;
 
-      // Decrypt if file encryption was enabled
-      if (this.useEncryption && this.cryptoKey) {
-        chunkData = await decryptChunk(payload, this.cryptoKey);
+      // Decrypt ONLY if sender explicitly encrypted chunks and receiver has a valid non-fallback cryptoKey
+      const isSenderEncrypted = !!(this.currentReceivingFile && this.currentReceivingFile.encryptedChunks);
+      if (isSenderEncrypted && this.cryptoKey && !this.cryptoKey.isFallback) {
+        try {
+          chunkData = await decryptChunk(payload, this.cryptoKey);
+        } catch (e) {
+          console.error('Failed to decrypt chunk, using raw payload:', e);
+          chunkData = payload;
+        }
       }
 
       // Store chunk data in memory
