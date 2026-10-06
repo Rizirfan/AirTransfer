@@ -34,18 +34,20 @@ export function Receive({ sessionId: initialSessionId, initialHexKey = '', onBac
   const activeSessionIdRef = useRef('');
 
   useEffect(() => {
-    if (initialSessionId) {
-      setSessionId(initialSessionId);
-      activeSessionIdRef.current = initialSessionId;
-    }
-
-    // Parse URL hash for key if present (e.g. #/share/K8F4-X92P#key=...)
-    if (!initialHexKey) {
+    let activeKey = initialHexKey;
+    if (!activeKey) {
       const hash = window.location.hash;
       const match = hash.match(/key=([a-f0-9]+)/i);
       if (match) {
-        setHexKey(match[1]);
+        activeKey = match[1];
+        setHexKey(activeKey);
       }
+    }
+
+    if (initialSessionId) {
+      setSessionId(initialSessionId);
+      activeSessionIdRef.current = initialSessionId;
+      handleConnect(initialSessionId, activeKey);
     }
 
     return () => {
@@ -69,23 +71,27 @@ export function Receive({ sessionId: initialSessionId, initialHexKey = '', onBac
   };
 
   /**
-   * Receiver clicks [ Connect ]
+   * Receiver clicks [ Connect ] or auto-connects from QR / Share link
    */
-  const handleConnect = async () => {
-    if (!sessionId) return;
-    const cleanSessionId = sessionId.trim().toUpperCase();
+  const handleConnect = async (targetSessionId, targetHexKey) => {
+    const activeId = targetSessionId || sessionId;
+    if (!activeId) return;
+
+    const cleanSessionId = activeId.trim().toUpperCase();
     activeSessionIdRef.current = cleanSessionId;
 
     setTransferState('CONNECTING');
     setErrorMessage('');
+
+    const activeKey = targetHexKey || hexKey;
 
     try {
       // Disconnect previous socket listeners if any
       signalingService.disconnect();
 
       // Import session encryption key if present in URL hash
-      if (hexKey) {
-        const key = await importKeyFromHex(hexKey);
+      if (activeKey) {
+        const key = await importKeyFromHex(activeKey);
         sessionKeyRef.current = key;
         signalingService.setSessionKey(key);
       }
@@ -220,7 +226,7 @@ export function Receive({ sessionId: initialSessionId, initialHexKey = '', onBac
   const handleQRScanSuccess = ({ sessionId: scannedId, fullUrl, hexKey: scannedHexKey }) => {
     setSessionId(scannedId);
     if (scannedHexKey) setHexKey(scannedHexKey);
-    handleConnect();
+    handleConnect(scannedId, scannedHexKey);
   };
 
   return (
