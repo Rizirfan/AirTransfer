@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { FileDropzone } from '../components/FileDropzone.jsx';
 import { PrivacyBadge } from '../components/PrivacyBadge.jsx';
-import { ArrowRight, Download, ShieldCheck, Zap, Lock, Globe } from 'lucide-react';
+import { QRScannerModal } from '../components/QRScannerModal.jsx';
+import { ArrowRight, Download, ShieldCheck, Zap, Lock, Globe, QrCode, Camera } from 'lucide-react';
 import { isValidSessionId } from '../utils/sessionId.js';
 
 export function Home({ onSelectFilesToSend, onJoinSession }) {
   const [joinCode, setJoinCode] = useState('');
   const [codeError, setCodeError] = useState('');
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
   const handleJoinSubmit = (e) => {
     e.preventDefault();
@@ -25,8 +27,21 @@ export function Home({ onSelectFilesToSend, onJoinSession }) {
     onJoinSession(cleanCode);
   };
 
+  const handleQRScanSuccess = ({ sessionId, fullUrl, hexKey }) => {
+    if (fullUrl) {
+      window.location.hash = `#/share/${sessionId}${hexKey ? `#key=${hexKey}` : ''}`;
+    } else {
+      onJoinSession(sessionId);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onScanSuccess={handleQRScanSuccess}
+      />
       
       {/* Hero Header */}
       <div className="text-center max-w-2xl mx-auto mb-10">
@@ -69,14 +84,28 @@ export function Home({ onSelectFilesToSend, onJoinSession }) {
             </span>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Receive Files</h2>
             <p className="text-sm text-gray-500 mb-6">
-              Enter the 8-character session code provided by the sender.
+              Enter session code or scan QR code on sender device.
             </p>
+
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => setIsQRScannerOpen(true)}
+                className="w-full bg-gray-900 hover:bg-black text-white font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2 shadow-sm mb-4"
+              >
+                <Camera className="w-4 h-4 text-emerald-400" />
+                <span>Scan QR Code to Receive</span>
+              </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-gray-200"></div>
+                <span className="flex-shrink mx-3 text-gray-400 text-xs font-mono uppercase">or enter code</span>
+                <div className="flex-grow border-t border-gray-200"></div>
+              </div>
+            </div>
 
             <form onSubmit={handleJoinSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase font-mono mb-1.5">
-                  Share Code
-                </label>
                 <input
                   type="text"
                   value={joinCode}
@@ -86,7 +115,7 @@ export function Home({ onSelectFilesToSend, onJoinSession }) {
                   }}
                   placeholder="e.g. K8F4-X92P"
                   maxLength={9}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-lg font-mono font-bold uppercase tracking-wider text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-lg font-mono font-bold uppercase tracking-wider text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-all text-center"
                 />
                 {codeError && (
                   <p className="text-xs text-rose-600 mt-1.5 font-medium">{codeError}</p>
@@ -95,10 +124,10 @@ export function Home({ onSelectFilesToSend, onJoinSession }) {
 
               <button
                 type="submit"
-                className="w-full bg-black hover:bg-gray-800 text-white font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2 shadow-sm"
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2 border border-gray-300"
               >
                 <Download className="w-4 h-4" />
-                <span>Join Session & Receive</span>
+                <span>Join with Code</span>
               </button>
             </form>
           </div>

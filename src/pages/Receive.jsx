@@ -4,17 +4,19 @@ import { ConnectionStatus } from '../components/ConnectionStatus.jsx';
 import { TransferProgress } from '../components/TransferProgress.jsx';
 import { TransferComplete } from '../components/TransferComplete.jsx';
 import { PrivacyBadge } from '../components/PrivacyBadge.jsx';
+import { QRScannerModal } from '../components/QRScannerModal.jsx';
 
 import { signalingService } from '../services/signaling.js';
 import { WebRTCService } from '../services/webrtc.js';
 import { FileTransferManager } from '../services/fileTransfer.js';
 import { importKeyFromHex } from '../services/encryption.js';
 
-import { Download, ArrowLeft, ShieldCheck, Check, X, Loader2 } from 'lucide-react';
+import { Download, ArrowLeft, ShieldCheck, Check, X, Loader2, Camera } from 'lucide-react';
 
 export function Receive({ sessionId: initialSessionId, initialHexKey = '', onBackToHome, iceConfig }) {
   const [sessionId, setSessionId] = useState(initialSessionId || '');
   const [hexKey, setHexKey] = useState(initialHexKey || '');
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
   // Connection Lifecycle States
   const [transferState, setTransferState] = useState('IDLE'); // IDLE, CONNECTING, CONNECTED, WAITING_FOR_ACCEPT, TRANSFERRING, COMPLETED, DISCONNECTED, FAILED, EXPIRED, CANCELLED
@@ -215,8 +217,19 @@ export function Receive({ sessionId: initialSessionId, initialHexKey = '', onBac
     setProgressData(null);
   };
 
+  const handleQRScanSuccess = ({ sessionId: scannedId, fullUrl, hexKey: scannedHexKey }) => {
+    setSessionId(scannedId);
+    if (scannedHexKey) setHexKey(scannedHexKey);
+    handleConnect();
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onScanSuccess={handleQRScanSuccess}
+      />
       
       {/* Top Header Navigation */}
       <div className="flex items-center justify-between mb-6">
@@ -247,10 +260,22 @@ export function Receive({ sessionId: initialSessionId, initialHexKey = '', onBac
           </div>
 
           <div className="max-w-xs mx-auto space-y-4">
+            <button
+              type="button"
+              onClick={() => setIsQRScannerOpen(true)}
+              className="w-full bg-gray-900 hover:bg-black text-white font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2 shadow-sm"
+            >
+              <Camera className="w-4 h-4 text-emerald-400" />
+              <span>Scan QR Code to Receive</span>
+            </button>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-gray-200"></div>
+              <span className="flex-shrink mx-3 text-gray-400 text-xs font-mono uppercase">or enter code</span>
+              <div className="flex-grow border-t border-gray-200"></div>
+            </div>
+
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase font-mono mb-1 text-left">
-                Session Code
-              </label>
               <input
                 type="text"
                 value={sessionId}
@@ -262,12 +287,12 @@ export function Receive({ sessionId: initialSessionId, initialHexKey = '', onBac
             </div>
 
             <button
-              onClick={handleConnect}
+              onClick={() => handleConnect()}
               disabled={!sessionId}
-              className="w-full bg-black hover:bg-gray-800 disabled:opacity-50 text-white font-medium py-3 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2 shadow-sm"
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2 border border-gray-300 disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              <span>Connect & Receive</span>
+              <span>Connect with Code</span>
             </button>
           </div>
 
